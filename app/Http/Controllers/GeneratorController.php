@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use App\Http\Controllers\ModelGenerator;
+use App\Http\Controllers\RequestController;
 use DB;
 
 class GeneratorController extends Controller
@@ -22,15 +24,27 @@ class GeneratorController extends Controller
     public function submitValue(Request $request)
     {
         $input = $request->all();
-        $tablename = $input['table'];
-        $columns = DB::getSchemaBuilder()->getColumnListing($tablename);
-        $content = view('template.controller_template', ['tablename' => $tablename, 'columns' => $columns]);
-        
-        $controllerFile = 'App\Http\Controllers'. ucfirst(Str::camel(Str::singular($tablename))) . 'Controller.php';
+        $data = self::tableAndColumns($input);
+        $content = view('template.controller_template', ['tablename' => $data['tablename'], 'columns' => $data['columns']]);
+        $path = app_path().'/Http/Controllers/';
+        $controllerFile = $path . ucfirst(Str::camel(Str::singular($data['tablename']))) . 'Controller.php';
+
         if (file_put_contents($controllerFile, $content) !== false) {
-            return redirect()->route('getTables')->with('success', "File created (" . basename($controllerFile) . ")");
+            $messageModel = ModelGenerator::modelGenerate($data);
+            $messageRequest = RequestController::generateRequest($data);
+            if(!empty($messageModel) && !empty($messageRequest)){
+                return redirect()->route('getTables')->with('success', "File created (" . basename($controllerFile) . ")");
+            }
         } else {
             return redirect()->route('getTables')->with('failed', "Cannot create file (" . basename($controllerFile) . ")");
         }
+    }
+
+    public static function tableAndColumns($input)
+    {
+        $tablename = $input['table'];
+        $columns = DB::getSchemaBuilder()->getColumnListing($tablename);
+
+        return ['tablename' => $tablename,'columns' => $columns];
     }
 }
